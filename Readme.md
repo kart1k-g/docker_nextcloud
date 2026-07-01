@@ -1,0 +1,42 @@
+# Reverse Proxy 
+I assume that the host machine has no reverse proxy of its own. I will be using nginx as the reverse proxy and certbot to obtain ssl certificates for the entire host machine.
+
+1. It can be used to route all traffic for the machine. Though, this repo will be using it only for nextcloud traffic.
+2. Place the **reverse-proxy** folder preferably inside **/opt**  (as this is meant for this type of services) or on any place of your choice on the host. Folder placement will not affect the working
+3. Nginx config for nextcloud is placed inside:
+    >/reverse-proxy/nginx/conf.d/
+
+    Note: If you want to host other services on the same host, you can simply place their nginx files inside the above dir.
+
+    The nextcloud.conf is taken from the official docs, it is for the urls of form *http(s)://cloud.example.com/*. If you'll be using url of the form *http(s)://cloud.example.com/nextcloud/* then refer to the officail docs:
+    > https://docs.nextcloud.com/server/stable/admin_manual/installation/nginx.html
+    
+    with a few tweeks :
+    
+    ```
+    upstream php-handler {
+        server nextcloud:9000;
+    }
+    ```
+    ```
+    # Path to the root of your installation
+    root /var/www/html;
+    ```
+
+    ```
+    replace 'nextcloud.kart1kg.com' with the domain you wish to use for nextcloud
+    ```
+
+
+4. Also create the **letsencrypt** folder inside **reverse-proxy** for cerbot to manage ssl certificates.
+
+```
+Folder structure:
+
+/opt/reverse-proxy/
+├── compose.yaml
+├── nginx/
+│   ├── conf.d/
+│   │   └── nextcloud.conf
+└── letsencrypt/
+```
