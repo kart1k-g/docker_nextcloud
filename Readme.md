@@ -30,11 +30,13 @@ I assume that the host machine has no reverse proxy of its own. I will be using 
 
 4. Also create the **letsencrypt** folder inside **reverse-proxy** for cerbot to manage ssl certificates.
 
+5. The **compose.yml** defines an internal network **proxy** managed by **nginx** and other services will connect to it and **not create a new network**
+
 ```
 Folder structure:
 
 /opt/reverse-proxy/
-├── compose.yaml
+├── compose.yml
 ├── nginx/
 │   ├── conf.d/
 │   │   └── nextcloud.conf
