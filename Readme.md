@@ -107,3 +107,32 @@ Having setup the minimum prerequisite to selfhost Nextcloud, we can now move on 
     NEXTCLOUD_DATA_DIR=$HOME/nextcloud-data
     ```
     Keep this path same as the one menioned in **/reverse-proxy/.env**.
+
+# Redis (Optional)
+Redis provides in memory caching our content on nextcloud and can provide speedup. To use it, we'll have to let know nextcloud about it.
+1. The configuration for the same lies in:
+    > $HOME/nextcloud-data/config/config.php  
+
+    Use the path specified in the variable **NEXTCLOUD_DATA_DIR** instead of *$HOME/nextcloud-data*
+
+2. I'll use nano to edit it, run the following:
+    > sudo nano $HOME/nextcloud-data/config/config.php  
+
+    Add/modify the following properties:
+    ```
+    'memcache.local' => '\OC\Memcache\APCu',
+
+    'filelocking.enabled' => true,
+
+    'memcache.locking' => '\OC\Memcache\Redis',
+
+    'redis' => [
+        'host' => 'redis',
+        'port' => 6379,
+    ],
+
+    'trusted_proxies' =>
+    array (
+        0 => 'nginx',
+    ),    
+    ```
