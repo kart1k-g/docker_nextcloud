@@ -10,12 +10,17 @@ services:
 
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./letsencrypt:/etc/letsencrypt:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ${NEXTCLOUD_DATA_DIR}:/var/www/html:ro
 
     restart: unless-stopped
+
+    environment:
+      NEXTCLOUD_DATA_DIR: ${NEXTCLOUD_DATA_DIR}
 
     networks:
       - proxy
 
 networks:
   proxy:
+    external: true
