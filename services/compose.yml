@@ -38,10 +38,12 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_HOST: mariadb
       NEXTCLOUD_DATA_DIR: ${NEXTCLOUD_DATA_DIR}
+      PHP_UPLOAD_LIMIT: 2G
 
     volumes:
       #/path/to/store/nextcloud/data : var/www/html
       - ${NEXTCLOUD_DATA_DIR}:/var/www/html
+      - ./php/custom.ini:/usr/local/etc/php/conf.d/custom.ini:ro
 
     networks:
       - nextcloud

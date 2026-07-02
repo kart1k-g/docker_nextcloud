@@ -11,7 +11,9 @@ docker_nextcloud
 │           └── nextcloud.conf
 └── services
     ├── .env
-    └── compose.yml
+    ├── compose.yml
+    └── php
+        └── custom.ini
 ```
 # Reverse Proxy 
 I assume that the host machine has no reverse proxy of its own. I will be using nginx as the reverse proxy and certbot to obtain ssl certificates for the entire host machine.
@@ -20,18 +22,24 @@ I assume that the host machine has no reverse proxy of its own. I will be using 
 2. Place the **reverse-proxy** folder preferably inside **/opt**  (as this is meant for this type of services) or on any place of your choice on the host. Folder placement will not affect the working.
 
 3. Obtain ssl certificates for the same domain using certbot. Run (use the domain you'll be using for nextcloud). Let's say its nc.example.com:
-    >sudo apt update  
-    >sudo apt install certbot -y  
-    >sudo certbot certonly --standalone -d nc.example.com
+    ```
+    sudo apt update  
+    sudo apt install certbot -y  
+    sudo certbot certonly --standalone -d nc.example.com
+    ```
 
     To verify, view the dir:
-    > sudo ls /etc/letsencrypt/live/nc.example.com
-
+    ```
+    sudo ls /etc/letsencrypt/live/nc.example.com
+    ```
 
     It must contain these files
-    ```
-    cert.pem  chain.pem  fullchain.pem  privkey.pem
-    ```
+    
+    >cert.pem  
+    chain.pem   
+    fullchain.pem  
+    privkey.pem
+    
 
 4. Nginx config for nextcloud is:
     >/reverse-proxy/nginx/conf.d/nextcloud.conf
@@ -61,7 +69,9 @@ I assume that the host machine has no reverse proxy of its own. I will be using 
 5. I'm using a **bind mount** for ssl certificates in the **compose.yml** since these are managed by certbot on the host.
 
 6. The **compose.yml** defines an internal network **proxy** managed by **nginx** and other services will connect to it and **not create a new network**. Run the following command to create **proxy**
-    > docker network create proxy
+    ```
+    docker network create proxy
+    ```
 
     Note: Docker prefixes network names with directory name. If you create a network in the compose.yml file (by **not** setting **external: true** )it might not resolve correctly.
 
@@ -92,7 +102,9 @@ You may place **/service** anywhere instead of **/opt** .
     ```
 
 3. This database will only talk to nextcloud and hence we only expose it to **nextcloud** network. To create it run the following:
-    >docker network create nextcloud  
+    ```
+    docker network create nextcloud  
+    ```
 
 Note: SQLite works fine just like other RDBMSs with a caveat that it **doesn't** support concurrent write operations like othes. This may lead to scalability issues.
 
@@ -108,6 +120,38 @@ Having setup the minimum prerequisite to selfhost Nextcloud, we can now move on 
     ```
     Keep this path same as the one menioned in **/reverse-proxy/.env**.
 
+# PHP Tweeks For Nextcloud
+By this time, nextcloud is ready to be used. The purpose of this block is to tweek some of the default setting as per our need. 
+These tweeks are specified in:
+> /services/php/custom.ini
+
+1. The max file upload size is specified by all of them:
+
+    > /services/php/custom.ini
+    ```
+    upload_max_filesize = 2G
+    post_max_size = 2G
+    ```
+
+    >/services/compose.yml
+    ```
+    PHP_UPLOAD_LIMIT: 2G
+    ```
+
+    >/reverse-proxy/nginx/conf.d/nextcloud.conf
+    ```
+    client_max_body_size 2G;
+    ```
+
+    The minimum of all the above values will be used.  
+    To verify it, with nextcloud container up,  run:
+    ```
+    docker exec nextcloud php -i | grep upload_max_filesize
+    ```
+    You must get:
+    > upload_max_filesize => 2G => 2G
+
+
 # Redis (Optional)
 Redis provides in memory caching our content on nextcloud and can provide speedup. To use it, we'll have to let know nextcloud about it.
 1. The configuration for the same lies in:
@@ -116,7 +160,9 @@ Redis provides in memory caching our content on nextcloud and can provide speedu
     Use the path specified in the variable **NEXTCLOUD_DATA_DIR** instead of *$HOME/nextcloud-data*
 
 2. I'll use nano to edit it, run the following:
-    > sudo nano $HOME/nextcloud-data/config/config.php  
+    ```
+    sudo nano $HOME/nextcloud-data/config/config.php  
+    ```
 
     Add/modify the following properties:
     ```
