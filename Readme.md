@@ -150,6 +150,13 @@ Having setup the minimum prerequisite to selfhost Nextcloud, we can now move on 
     ```
     Keep this path same as the one menioned in **/reverse-proxy/.env**.
 
+4. The **compose.yml** file also creates a container **nextcloud-cron** for nextcloud cron specified in the offical documentation: https://docs.nextcloud.com/server/latest/admin_manual/configuration_server/background_jobs_configuration.html?utm_source=chatgpt.com  
+For it to take effect:  
+a. Open Nextcloud as an admin.  
+b. Go to Administration Settings → Basic settings.  
+c. Under Background jobs, select Cron.  
+
+
 # PHP Tweeks For Nextcloud
 By this time, nextcloud is ready to be used. The purpose of this block is to tweek some of the default setting as per our need. 
 These tweeks are specified in:

@@ -49,6 +49,34 @@ services:
       - nextcloud
       - proxy
 
+  nextcloud-cron:
+    container_name: nextcloud-cron
+
+    image: nextcloud:31-fpm
+
+    restart: unless-stopped
+
+    depends_on: 
+     - mariadb
+
+    entrypoint: /cron.sh
+
+    environment:
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: nextcloud
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_HOST: mariadb
+      NEXTCLOUD_DATA_DIR: ${NEXTCLOUD_DATA_DIR}
+      PHP_UPLOAD_LIMIT: 2G
+
+    volumes:
+      #/path/to/store/nextcloud/data : var/www/html
+      - ${NEXTCLOUD_DATA_DIR}:/var/www/html
+      - ./php/custom.ini:/usr/local/etc/php/conf.d/custom.ini:ro
+
+    networks:
+      - nextcloud
+
   redis:
     image: redis:8-alpine
 
