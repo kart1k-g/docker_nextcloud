@@ -15,6 +15,24 @@ docker_nextcloud
     └── php
         └── custom.ini
 ```
+# Storage Type Used
+```
+MariaDB   -> named volume  
+Redis     -> named volume  
+Nextcloud -> bind mount  
+Nginx conf-> bind mount  
+SSL certs -> bind mount  
+```
+# Docker Setup On Host
+
+```
+sudo apt update
+sudo apt install docker.io docker-compose-plugin
+sudo systemctl enable --now docker
+sudo usermod -aG docker $USER
+newgrp docker
+```
+If *docker-compose-plugin* is not found then use *docker-compose-v2* instead.
 # Reverse Proxy 
 I assume that the host machine has no reverse proxy of its own. I will be using nginx as the reverse proxy and certbot to obtain ssl certificates for the entire host machine.
 
@@ -182,3 +200,24 @@ Redis provides in memory caching our content on nextcloud and can provide speedu
         0 => 'nginx',
     ),    
     ```
+
+# Bring it up baby!
+Finally after reading through all of that **you** made it to bringing **Nextcloud** online. Needless to say I too feel happy for reaching this seciton. 
+
+This won't take long just, all thanks to **Docker**. 
+
+To bring the reverse-proxy up, run:
+```
+cd /opt/reverse-proxy
+docker compose up -d
+```
+
+For nextcloud, run:
+```
+cd /opt/services
+docker compose up -d
+```
+
+**You are good to go!!**
+
+Visit your specified url, here it is: https://nc.example.com
