@@ -33,6 +33,18 @@ sudo usermod -aG docker $USER
 newgrp docker
 ```
 If *docker-compose-plugin* is not found then use *docker-compose-v2* instead.
+
+# Firewall 
+This one often gets me scratching my head as to what the hell is happening!  
+Basically we need ports **80 and 443** open on our host for incoming HTTP/HTTPS traffic.  
+Do it for your system firewall.
+1. For **iptables firewall**, run: 
+    ```
+    sudo iptables -I INPUT 1 -p tcp --dport 80 -j ACCEPT
+    sudo iptables -I INPUT 1 -p tcp --dport 443 -j ACCEPT
+    sudo apt install iptables-persistent
+    sudo netfilter-persistent save
+    ```
 # Reverse Proxy 
 I assume that the host machine has no reverse proxy of its own. I will be using nginx as the reverse proxy and certbot to obtain ssl certificates for the entire host machine.
 
