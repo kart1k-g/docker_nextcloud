@@ -233,3 +233,53 @@ docker compose up -d
 **You are good to go!!**
 
 Visit your specified url, here it is: https://nc.example.com
+
+# Image Previews For Client (Optional)
+
+Reading it doesn't give the feel of its need but it can quicky become a bottleneck.  
+1. Conside a folder **/myimages** containing several images that you uploaded onto your nextcloud. 
+The default behaivour of nextcloud is to generate image previews on the fly when you open **/myimages** on the client.
+2. For around 50-100 it works fine but with increasing number of images this can eaisly eatup significant compute and choke the server.
+3. For this the solution I found is to generate image previews periodically in background and store them on disk.
+4. First tweak preview setting of nextcloud in:
+    >  $HOME/nextcloud-data/config/config.php  
+
+    Set the following properties:
+    ```
+    'enable_previews' => true,
+
+    'enabledPreviewProviders' => [
+        'OC\Preview\PNG',
+        'OC\Preview\JPEG',
+        'OC\Preview\GIF',
+        'OC\Preview\TXT',
+        'OC\Preview\MarkDown',
+        'OC\Preview\SVG',
+        'OC\Preview\HEIC',
+    ],
+
+    'preview_max_x' => 1024,
+    'preview_max_y' => 1024,
+    'jpeg_quality' => 60,
+    'preview_max_memory' => 1024,
+    ```
+
+    a. You can **turnoff** preview completely by *'enable_previews' => false*  
+    b. Specify files for which you want previews in *'enabledPreviewProviders'*  
+    c. Specify preview dimensions by *'preview_max_x' => 1024* and *'preview_max_y' => 1024*
+
+5. With **nextcloud container running**, install preview generator:
+    ```
+    docker exec -it nextcloud php occ app:install previewgenerator
+    docker exec -it nextcloud php occ app:enable previewgenerator
+    ```
+
+6. Run this to generate previews for all the existing images which don't have a preview yet.
+    ```
+    docker exec -it nextcloud php occ preview:generate-all
+    ``` 
+7. Add a cron job on host for background preview generation every 10 minutes. Run:
+    ```
+    crontab -e
+    */10 * * * * docker exec -u www-data nextcloud php occ preview:pre-generate
+    ```
