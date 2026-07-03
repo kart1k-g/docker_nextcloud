@@ -37,13 +37,14 @@ services:
       MYSQL_USER: nextcloud
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_HOST: mariadb
-      NEXTCLOUD_DATA_DIR: ${NEXTCLOUD_DATA_DIR}
+      NEXTCLOUD_DATA: ${NEXTCLOUD_DATA}
       PHP_UPLOAD_LIMIT: 2G
 
     volumes:
       #/path/to/store/nextcloud/data : var/www/html
-      - ${NEXTCLOUD_DATA_DIR}:/var/www/html
+      - ${NEXTCLOUD_DATA}:/var/www/html/data
       - ./php/custom.ini:/usr/local/etc/php/conf.d/custom.ini:ro
+      - nextcloud:/var/www/html
 
     networks:
       - nextcloud
@@ -66,13 +67,14 @@ services:
       MYSQL_USER: nextcloud
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_HOST: mariadb
-      NEXTCLOUD_DATA_DIR: ${NEXTCLOUD_DATA_DIR}
+      NEXTCLOUD_DATA: ${NEXTCLOUD_DATA}
       PHP_UPLOAD_LIMIT: 2G
 
     volumes:
       #/path/to/store/nextcloud/data : var/www/html
-      - ${NEXTCLOUD_DATA_DIR}:/var/www/html
+      - ${NEXTCLOUD_DATA}:/var/www/html/data
       - ./php/custom.ini:/usr/local/etc/php/conf.d/custom.ini:ro
+      - nextcloud:/var/www/html
 
     networks:
       - nextcloud
@@ -95,6 +97,8 @@ services:
 volumes:
   db:
   redis:
+  nextcloud:
+    external: true
 
 networks:
   nextcloud:

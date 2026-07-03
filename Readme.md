@@ -17,11 +17,12 @@ docker_nextcloud
 ```
 # Storage Type Used
 ```
-MariaDB   -> named volume  
-Redis     -> named volume  
-Nextcloud -> bind mount  
-Nginx conf-> bind mount  
-SSL certs -> bind mount  
+MariaDB                 -> named volume  
+Redis                   -> named volume  
+Nextcloud Installation  -> named volume  
+Nextcloud USer Data     -> bind mount  
+Nginx conf              -> bind mount  
+SSL certs               -> bind mount  
 ```
 # Docker Setup On Host
 
@@ -32,8 +33,8 @@ sudo systemctl enable --now docker
 sudo usermod -aG docker $USER
 newgrp docker
 ```
-If *docker-compose-plugin* is not found then use *docker-compose-v2* instead.
-
+If *docker-compose-plugin* is not found then use *docker-compose-v2* instead.  
+**Reboot the instance**, for user joining docker group change to take effect.
 # Firewall 
 This one often gets me scratching my head as to what the hell is happening!  
 Basically we need ports **80 and 443** open on our host for incoming HTTP/HTTPS traffic.  
@@ -45,8 +46,20 @@ Do it for your system firewall.
     sudo apt install iptables-persistent
     sudo netfilter-persistent save
     ```
+2. To verify:
+    ```
+    sudo iptables -L INPUT -v -n --line-numbers
+    ```
+    You must get something similar
+    > 1       16   896 ACCEPT     6    --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:443  
+    >2       11   620 ACCEPT     6    --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:80  
+
+    Notice **80** and **443** at the end of lines
+    
 # Reverse Proxy 
 I assume that the host machine has no reverse proxy of its own. I will be using nginx as the reverse proxy and certbot to obtain ssl certificates for the entire host machine.
+
+Reminder: Configure your DNS to point to the host's IP.
 
 1. It can be used to route all traffic for the machine. Though, this repo will be using it only for nextcloud traffic.
 2. Place the **reverse-proxy** folder preferably inside **/opt**  (as this is meant for this type of services) or on any place of your choice on the host. Folder placement will not affect the working.
@@ -79,7 +92,7 @@ I assume that the host machine has no reverse proxy of its own. I will be using 
     The **nextcloud.conf** is taken from the official nextcloud docs, it is for the urls of form *http(s)://nextcloud.example.com/*. If you'll be using url of the form *http(s)://example.com/nextcloud* then refer to the official docs:
     > https://docs.nextcloud.com/server/stable/admin_manual/installation/nginx.html
     
-    A few tweeks are to be done for our setup :
+    A few tweeks were done for the setup :
     
     ```
     upstream php-handler {
@@ -90,6 +103,7 @@ I assume that the host machine has no reverse proxy of its own. I will be using 
     # Path to the root of your installation
     root /var/www/html;
     ```
+    **You need to change the below part**:
 
     ```
     #use your domain by replacing every occurance:
@@ -108,7 +122,7 @@ I assume that the host machine has no reverse proxy of its own. I will be using 
 7. Create **/reverse-proxy/.env** with:
     ```
     #/path/to/store/nextcloud/data/on/host
-    NEXTCLOUD_DATA_DIR=$HOME/nextcloud-data
+    NEXTCLOUD_DATA=$HOME/nextcloud-data
     ```
     Instead of *$HOME/nextcloud-data*, you may choose to store your data anywhere.
 
@@ -146,16 +160,62 @@ Having setup the minimum prerequisite to selfhost Nextcloud, we can now move on 
 3. In the **/services/.env** specify :
     ```
     #/path/to/store/nextcloud/data/on/host
-    NEXTCLOUD_DATA_DIR=$HOME/nextcloud-data
+    NEXTCLOUD_DATA=$HOME/nextcloud-data
     ```
-    Keep this path same as the one menioned in **/reverse-proxy/.env**.
+    Keep this path same as the one mentioned in **/reverse-proxy/.env**.
 
 4. The **compose.yml** file also creates a container **nextcloud-cron** for nextcloud cron specified in the offical documentation: https://docs.nextcloud.com/server/latest/admin_manual/configuration_server/background_jobs_configuration.html?utm_source=chatgpt.com  
 For it to take effect:  
 a. Open Nextcloud as an admin.  
 b. Go to Administration Settings → Basic settings.  
 c. Under Background jobs, select Cron.  
+5. Create a volume named nextcloud for nextcloud installation.
+    ```
+    docker volume create nextcloud
+    ```
+6. Run both the container:
+    ```
+    cd /opt/reverse-proxy
+    docker compose up -d
+    cd /opt/services
+    docker compose up -d
+    ```
+7. Visit your domain on a web browser and install nextcloud. After clicking on install you won't be able to access the url. It requires some further config. Leave the container up for now. 
 
+8. The configuration for nextcloud php config lies inside the nextcloud container at:
+    > /var/www/html/config/config.php 
+ 
+    Get its copy from the container:
+    ```
+    docker cp nextcloud:/var/www/html/config/config.php .
+    nano config.php
+    ```
+    Add/Modify the following:  
+    ```
+    array ( 
+        0 => 'Your Host IP',
+        1 => 'nc.kart1kg.com',
+     ),
+
+    'trusted_proxies' => array ( 0 => 'nginx', ),
+
+    'overwrite.cli.url' => 'https://nc.kart1kg.com',
+    ```
+    *Use your domain above*
+
+    Copy it back to the container and set proper permissions:
+    ```
+    docker cp config.php nextcloud:/var/www/html/config/config.php
+
+    docker exec nextcloud chown www-data:www-data /var/www/html/config/config.php
+    docker exec nextcloud chmod 640 /var/www/html/config/config.php
+    ```
+    Verify by:
+    ```
+    docker exec nextcloud ls -l /var/www/html/config/config.php
+    ```
+    You must get:
+    > -rw-r----- 1 www-data www-data 1279 Jul  3 21:32 /var/www/html/config/config.php
 
 # PHP Tweeks For Nextcloud
 By this time, nextcloud is ready to be used. The purpose of this block is to tweek some of the default setting as per our need. 
@@ -191,34 +251,44 @@ These tweeks are specified in:
 
 # Redis (Optional)
 Redis provides in memory caching our content on nextcloud and can provide speedup. To use it, we'll have to let know nextcloud about it.
-1. The configuration for the same lies in:
-    > $HOME/nextcloud-data/config/config.php  
+1. The configuration for the same lies inside the nextcloud container at:
+    > /var/www/html/config/config.php 
 
-    Use the path specified in the variable **NEXTCLOUD_DATA_DIR** instead of *$HOME/nextcloud-data*
 
-2. I'll use nano to edit it, run the following:
-    ```
-    sudo nano $HOME/nextcloud-data/config/config.php  
-    ```
 
-    Add/modify the following properties:
+2. Run:  
+    Get nextcloud php config from container:
     ```
+    docker cp nextcloud:/var/www/html/config/config.php .
+    nano config.php
+    ```
+    Add/Modify the following:  
+     ```
     'memcache.local' => '\OC\Memcache\APCu',
 
     'filelocking.enabled' => true,
 
     'memcache.locking' => '\OC\Memcache\Redis',
-
+    'memcache.distributed' => '\OC\Memcache\Redis',
     'redis' => [
         'host' => 'redis',
         'port' => 6379,
     ],
-
-    'trusted_proxies' =>
-    array (
-        0 => 'nginx',
-    ),    
     ```
+
+    Copy it back to the container and set proper permissions:
+    ```
+    docker cp config.php nextcloud:/var/www/html/config/config.php
+
+    docker exec nextcloud chown www-data:www-data /var/www/html/config/config.php
+    docker exec nextcloud chmod 640 /var/www/html/config/config.php
+    ```
+    Verify by:
+    ```
+    docker exec nextcloud ls -l /var/www/html/config/config.php
+    ```
+    You must get:
+    > -rw-r----- 1 www-data www-data 1279 Jul  3 21:32 /var/www/html/config/config.php
 
 # Bring it up baby!
 Finally after reading through all of that **you** made it to bringing **Nextcloud** online. Needless to say I too feel happy for reaching this seciton. 
