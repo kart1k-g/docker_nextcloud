@@ -103,6 +103,10 @@ Reminder: Configure your DNS to point to the host's IP.
     # Path to the root of your installation
     root /var/www/html;
     ```
+    ```
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    ```
     **You need to change the below part**:
 
     ```
@@ -173,18 +177,31 @@ c. Under Background jobs, select Cron.
     ```
     docker volume create nextcloud
     ```
-6. Run both the container:
+6. Run both the container, use seperate terminal for each to better see their logs:
     ```
     cd /opt/reverse-proxy
-    docker compose up -d
+    docker compose up
+
     cd /opt/services
-    docker compose up -d
+    docker compose up 
     ```
-7. Visit your domain on a web browser and install nextcloud. After clicking on install you won't be able to access the url. It requires some further config. Leave the container up for now. 
+    Wait unitl you see something like:
+    >mariadb         | 2026-07-04 10:37:08 0 [Note] mariadbd: ready for connections.  
+7. Visit your domain on a web browser and install nextcloud.  
+    Note : Domain propagation might take sometime so if it shows bad gatway or something simialr either wait for a while or use host ip in browser instead of domain name.  
+
+    After clicking on install you won't be able to access the url. It requires some further config. Leave the container up for now. 
 
 8. The configuration for nextcloud php config lies inside the nextcloud container at:
     > /var/www/html/config/config.php 
- 
+    
+    Run:
+    ```
+    docker network inspect proxy | grep Subnet
+    ```
+
+    > "Subnet": "172.18.0.0/16",  
+
     Get its copy from the container:
     ```
     docker cp nextcloud:/var/www/html/config/config.php .
@@ -197,9 +214,11 @@ c. Under Background jobs, select Cron.
         1 => 'nc.kart1kg.com',
      ),
 
-    'trusted_proxies' => array ( 0 => 'nginx', ),
+    # From above "Subnet": "172.18.0.0/16",  
+    'trusted_proxies' => array ( 0 => '172.18.0.0/16', ),
 
     'overwrite.cli.url' => 'https://nc.kart1kg.com',
+    'overwriteprotocol' => 'https',
     ```
     *Use your domain above*
 
@@ -208,6 +227,7 @@ c. Under Background jobs, select Cron.
     docker cp config.php nextcloud:/var/www/html/config/config.php
 
     docker exec nextcloud chown www-data:www-data /var/www/html/config/config.php
+
     docker exec nextcloud chmod 640 /var/www/html/config/config.php
     ```
     Verify by:
@@ -217,6 +237,21 @@ c. Under Background jobs, select Cron.
     You must get:
     > -rw-r----- 1 www-data www-data 1279 Jul  3 21:32 /var/www/html/config/config.php
 
+9. Server auto maintenance setup: 
+    Set its maintenance time such negligible traffic is expected during maintenance. 
+    ```
+    docker exec -u www-data nextcloud php occ config:system:set maintenance_window_start --type=integer --value=22
+    ```
+    Value specifies the time in **UTC**, here 22hrs UTC = 3:30 a.m IST
+
+    Then 
+    ```
+    docker exec -u www-data nextcloud php occ maintenance:repair --include-expensive
+    ```
+10. Maintenance, run ocasionally and also at the time of setup:
+    ```
+    docker exec -u www-data nextcloud php occ maintenance:repair --include-expensive
+    ```
 # PHP Tweeks For Nextcloud
 By this time, nextcloud is ready to be used. The purpose of this block is to tweek some of the default setting as per our need. 
 These tweeks are specified in:
@@ -248,6 +283,26 @@ These tweeks are specified in:
     You must get:
     > upload_max_filesize => 2G => 2G
 
+# Bring it up baby!
+Finally after reading through all of that **you** made it to bringing **Nextcloud** online. Needless to say I too feel happy for reaching this seciton. 
+
+This won't take long just, all thanks to **Docker**. 
+
+To bring the reverse-proxy up, run:
+```
+cd /opt/reverse-proxy
+docker compose up -d
+```
+
+For nextcloud, run:
+```
+cd /opt/services
+docker compose up -d
+```
+
+**You are good to go!!**
+
+Visit your specified url, here it is: https://nc.example.com
 
 # Redis (Optional)
 Redis provides in memory caching our content on nextcloud and can provide speedup. To use it, we'll have to let know nextcloud about it.
@@ -281,6 +336,7 @@ Redis provides in memory caching our content on nextcloud and can provide speedu
     docker cp config.php nextcloud:/var/www/html/config/config.php
 
     docker exec nextcloud chown www-data:www-data /var/www/html/config/config.php
+
     docker exec nextcloud chmod 640 /var/www/html/config/config.php
     ```
     Verify by:
@@ -290,27 +346,6 @@ Redis provides in memory caching our content on nextcloud and can provide speedu
     You must get:
     > -rw-r----- 1 www-data www-data 1279 Jul  3 21:32 /var/www/html/config/config.php
 
-# Bring it up baby!
-Finally after reading through all of that **you** made it to bringing **Nextcloud** online. Needless to say I too feel happy for reaching this seciton. 
-
-This won't take long just, all thanks to **Docker**. 
-
-To bring the reverse-proxy up, run:
-```
-cd /opt/reverse-proxy
-docker compose up -d
-```
-
-For nextcloud, run:
-```
-cd /opt/services
-docker compose up -d
-```
-
-**You are good to go!!**
-
-Visit your specified url, here it is: https://nc.example.com
-
 # Image Previews For Client (Optional)
 
 Reading it doesn't give the feel of its need but it can quicky become a bottleneck.  
@@ -318,10 +353,15 @@ Reading it doesn't give the feel of its need but it can quicky become a bottlene
 The default behaivour of nextcloud is to generate image previews on the fly when you open **/myimages** on the client.
 2. For around 50-100 it works fine but with increasing number of images this can eaisly eatup significant compute and choke the server.
 3. For this the solution I found is to generate image previews periodically in background and store them on disk.
-4. First tweak preview setting of nextcloud in:
-    >  $HOME/nextcloud-data/config/config.php  
+4. First tweak preview setting int the **nextcloud volume** at:
+    >  /var/www/html/config/config.php  
 
-    Set the following properties:
+    Get nextcloud php config from container:
+    ```
+    docker cp nextcloud:/var/www/html/config/config.php .
+    nano config.php
+    ```
+    Add/Modify the following:  
     ```
     'enable_previews' => true,
 
@@ -345,6 +385,21 @@ The default behaivour of nextcloud is to generate image previews on the fly when
     b. Specify files for which you want previews in *'enabledPreviewProviders'*  
     c. Specify preview dimensions by *'preview_max_x' => 1024* and *'preview_max_y' => 1024*
 
+    Copy it back to the container and set proper permissions:
+    ```
+    docker cp config.php nextcloud:/var/www/html/config/config.php
+
+    docker exec nextcloud chown www-data:www-data /var/www/html/config/config.php
+
+    docker exec nextcloud chmod 640 /var/www/html/config/config.php
+    ```
+    Verify by:
+    ```
+    docker exec nextcloud ls -l /var/www/html/config/config.php
+    ```
+    You must get:
+    > -rw-r----- 1 www-data www-data 1279 Jul  3 21:32 /var/www/html/config/config.php
+
 5. With **nextcloud container running**, install preview generator:
     ```
     docker exec -it nextcloud php occ app:install previewgenerator
@@ -358,5 +413,8 @@ The default behaivour of nextcloud is to generate image previews on the fly when
 7. Add a cron job on host for background preview generation every 10 minutes. Run:
     ```
     crontab -e
+    ```
+    Append:
+    ```
     */10 * * * * docker exec -u www-data nextcloud php occ preview:pre-generate
     ```
